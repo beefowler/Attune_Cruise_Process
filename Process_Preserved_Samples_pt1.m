@@ -22,7 +22,7 @@ restpath = 'https://nes-lter-data.whoi.edu/api/ctd/en668/';
 
 %Choose which steps to do 
 maketable1 = 0
-maketable2 = 0 
+maketable2 = 0
 
 % Vars for parsing filenames
 filetype2exclude = {'Rinses', 'skip', 'xxx';}; 
@@ -103,6 +103,8 @@ if ~exist('FCSList')
     P = load([outpath '/FCSList.mat']);
     FCSList = P.FCSList; 
 end
+
+if ~exist([outpath '/FilesToUse.csv'])
 
 [G, C, N] = findgroups(FCSList.Cast, FCSList.Niskin);
 FilesToUse = table(C, N, 'VariableNames', {'Cast'; 'Niskin'});
@@ -224,5 +226,9 @@ for c = 1:length(castlist)
 end
     
 writetable(FilesToUse_w_meta, [outpath 'FilesToUse.csv'])
+
+else
+    disp('FilesToUse.csv exists already. Delete it if you really want to overwrite')
+end
 
 end
