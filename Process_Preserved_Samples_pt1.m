@@ -22,7 +22,7 @@ restpath = 'https://nes-lter-data.whoi.edu/api/ctd/en668/';
 
 %Choose which steps to do 
 maketable1 = 0
-maketable2 = 0
+maketable2 = 1
 
 % Vars for parsing filenames
 filetype2exclude = {'Rinses', 'skip', 'xxx';}; 
@@ -105,24 +105,37 @@ if ~exist('FCSList')
 end
 
 if ~exist([outpath '/FilesToUse.csv'])
+    FilesToUse = table(); 
+    [G, C, N] = findgroups(FCSList.Cast, FCSList.Niskin);
+    ia = 1:length(G); 
+else
+    FilesToUse = readtable([outpath 'FilesToUse.csv']);
+    if ~iscell(FilesToUse.ProFile) %have to make it a cell, if it was read as NaNs
+        FilesToUse.ProFile = cell(height(FilesToUse), 1);
+    end
+    FilesToUse.Flags = num2cell(FilesToUse.Flags);
+    [G, C, N] = findgroups(FCSList.Cast, FCSList.Niskin);
+    [G2, C2, N2] = findgroups(FilesToUse.Cast, FilesToUse.Niskin);
+    [~, ia] = setdiff([C N], [C2 N2], 'rows');
+end
 
-[G, C, N] = findgroups(FCSList.Cast, FCSList.Niskin);
-FilesToUse = table(C, N, 'VariableNames', {'Cast'; 'Niskin'});
+FilesToADD = table(C(ia), N(ia), 'VariableNames', {'Cast'; 'Niskin'});
 
-for g = 1:max(G) % go through unique casts
+for g = 1:length(ia)% go through unique casts, which have not already been included
+    
     flag = ''; 
 
-    if C(g) == 0 
+    if C(ia(g)) == 0 
         continue %parsing error, no cast number
     end
 
-    Subset = FCSList(G==g, :); %limit list to just this Niskin
+    Subset = FCSList(G==ia(g), :); %limit list to just this Niskin
 
     %Get best guess filename for each cell type 
     %Syn First
     ind = find(contains(Subset.fcslist, 'phyto_PE'));
     if length(ind) == 1 %if only one fcs file of this type, use that. 
-        FilesToUse.SynFile(g) =  Subset.fcslist(ind);
+        FilesToADD.SynFile(g) =  Subset.fcslist(ind);
     elseif ~isempty(ind) %if more than 1, get most recent
         flag = strcat(flag, '1');
         timesince = []; 
@@ -132,13 +145,13 @@ for g = 1:max(G) % go through unique casts
             timesince = [timesince datetime()-time];
         end
         [~,truind] = min(timesince);
-        FilesToUse.SynFile(g) =  Subset.fcslist(ind(truind));
+        FilesToADD.SynFile(g) =  Subset.fcslist(ind(truind));
     end
 
      %Picoeuks
     ind = find(contains(Subset.fcslist, 'phyto_CHL'));
     if length(ind) == 1 %if only one fcs file of this type, use that. 
-        FilesToUse.EukFile(g) =  Subset.fcslist(ind);
+        FilesToADD.EukFile(g) =  Subset.fcslist(ind);
     elseif ~isempty(ind) %if more than 1, get most recent
         flag = strcat(flag, '2');
         timesince = []; 
@@ -148,13 +161,13 @@ for g = 1:max(G) % go through unique casts
             timesince = [timesince datetime()-time];
         end
         [~,truind] = min(timesince);
-        FilesToUse.EukFile(g) =  Subset.fcslist(ind(truind));
+        FilesToADD.EukFile(g) =  Subset.fcslist(ind(truind));
     end
 
      %Heterotrophic bacteria 
     ind = find(contains(Subset.fcslist, 'hbac'));
     if length(ind) == 1 %if only one fcs file of this type, use that. 
-        FilesToUse.BacteriaFile(g) =  Subset.fcslist(ind);
+        FilesToADD.BacteriaFile(g) =  Subset.fcslist(ind);
     elseif ~isempty(ind) %if more than 1, get most recent
         flag = strcat(flag, '3');
         timesince = []; 
@@ -164,15 +177,15 @@ for g = 1:max(G) % go through unique casts
             timesince = [timesince datetime()-time];
         end
         [~,truind] = min(timesince);
-        FilesToUse.BacteriaFile(g) =  Subset.fcslist(ind(truind));
+        FilesToADD.BacteriaFile(g) =  Subset.fcslist(ind(truind));
     end
 
      %Prochlorococus if present
     ind = find(contains(Subset.fcslist, 'pro', 'IgnoreCase', true));
     if isempty(ind)
-        FilesToUse.ProFile{g} = '';
+        FilesToADD.ProFile{g} = '';
     elseif length(ind) == 1 %if only one fcs file of this type, use that. 
-        FilesToUse.ProFile(g) =  Subset.fcslist(ind);
+        FilesToADD.ProFile(g) =  Subset.fcslist(ind);
     else %if more than 1, get most recent
         flag = strcat(flag, '4');
         timesince = []; 
@@ -182,10 +195,10 @@ for g = 1:max(G) % go through unique casts
             timesince = [timesince datetime()-time];
         end
         [~,truind] = min(timesince);
-        FilesToUse.ProFile(g) =  Subset.fcslist(ind(truind));
+        FilesToADD.ProFile(g) =  Subset.fcslist(ind(truind));
     end
 
-    FilesToUse.Flags{g} = flag; 
+    FilesToADD.Flags{g} = flag; 
 
 end
 
@@ -196,7 +209,7 @@ bottledata = webread([restpath 'bottles.csv']);
 metadata = webread([restpath 'metadata.csv']); 
 
 castlist = unique(C);
-FilesToUse_w_meta = table(); 
+FilesToADD_w_meta = table(); 
 
 for c = 1:length(castlist)
 
@@ -204,7 +217,7 @@ for c = 1:length(castlist)
         continue
     end
 
-    tempP = FilesToUse(FilesToUse.Cast == castlist(c), :); 
+    tempP = FilesToADD(FilesToADD.Cast == castlist(c), :); 
     %first add depths for each niskin number
     tempB = bottledata(bottledata.cast == castlist(c), :); 
     Niskin = tempB.niskin; 
@@ -222,13 +235,14 @@ for c = 1:length(castlist)
     
     tempP = [tempP tempM]; 
     
-    FilesToUse_w_meta = [FilesToUse_w_meta; tempP]; 
+    FilesToADD_w_meta = [FilesToADD_w_meta; tempP]; 
 end
     
-writetable(FilesToUse_w_meta, [outpath 'FilesToUse.csv'])
 
-else
-    disp('FilesToUse.csv exists already. Delete it if you really want to overwrite')
+FilesToUse = [FilesToUse; FilesToADD_w_meta];
+
+writetable(FilesToUse, [outpath 'FilesToUse.csv'])
+
 end
 
 end
