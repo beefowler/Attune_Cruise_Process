@@ -21,7 +21,7 @@ function use_calibration_stats_linear(outpath, classpath, DIM, OD2setting)
 
 fpath = regexprep(outpath, 'bead_calibrated', 'FCS');
 
-saverpath = [classpath 'calibration_l']; %within class files we save calibraiton informatino and some figures
+saverpath = [classpath 'calibration']; %within class files we save calibraiton informatino and some figures
 classlist = dir([classpath, '*.mat']);
 
 figpath = [saverpath '/onefit'];
@@ -31,9 +31,9 @@ end
 
 calibrate = 0; 
 if strcmp(OD2setting, 'GL1')
-if exist([classpath '/calibration_l/table.mat'])
+if exist([classpath '/calibration/table.mat'])
     calibrate = 1;
-    load([classpath '/calibration_l/table.mat'])
+    load([classpath '/calibration/table.mat'])
     %get average linear model statistics from table, only for files where
     %quality check flag wasn't flagged
     joint_table.intercept(joint_table.intercept == -Inf | joint_table.intercept == Inf ) = NaN;

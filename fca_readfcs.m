@@ -79,6 +79,9 @@ function [fcsdat, fcshdr, fcsdatscaled, fcsdatcomp] = fca_readfcs(filename)
 %updated to read high voltage values from header
 %Heidi M. Sosik, Woods Hole Oceanographic Institution
 
+%March 2022
+%tried updating to read trigger threshold 
+
 % if noarg was supplied
 if nargin == 0
      [FileName, FilePath] = uigetfile('*.*','Select fcs2.0 file');
@@ -213,6 +216,7 @@ elseif  strcmp(fcsheader_type,'FCS2.0') || strcmp(fcsheader_type,'FCS3.0')  || s
         fcshdr.par(i).range = str2num(get_mnemonic_value(['$P',num2str(i),'R'],fcsheader_main, mnemonic_separator));
         fcshdr.par(i).bit = str2num(get_mnemonic_value(['$P',num2str(i),'B'],fcsheader_main, mnemonic_separator));
         fcshdr.par(i).hv = str2num(get_mnemonic_value(['$P',num2str(i),'V'],fcsheader_main, mnemonic_separator));
+      
 
         %==============   Changed way that amplification type is treated 
         par_exponent_str= (get_mnemonic_value(['$P',num2str(i),'E'],fcsheader_main, mnemonic_separator));
@@ -249,6 +253,7 @@ elseif  strcmp(fcsheader_type,'FCS2.0') || strcmp(fcsheader_type,'FCS3.0')  || s
   
     end
     
+  
     fcshdr.starttime = get_mnemonic_value('$BTIM',fcsheader_main, mnemonic_separator);
     fcshdr.stoptime = get_mnemonic_value('$ETIM',fcsheader_main, mnemonic_separator);
     fcshdr.cytometry = get_mnemonic_value('$CYT',fcsheader_main, mnemonic_separator);
@@ -266,6 +271,10 @@ elseif  strcmp(fcsheader_type,'FCS2.0') || strcmp(fcsheader_type,'FCS3.0')  || s
     fcshdr.cells = get_mnemonic_value('$Cells',fcsheader_main, mnemonic_separator);
     fcshdr.creator = get_mnemonic_value('CREATOR',fcsheader_main, mnemonic_separator);
         
+
+    fcshdr.trigger1 = get_mnemonic_value('#TR1',fcsheader_main, mnemonic_separator);
+    fcshdr.trigger2 = get_mnemonic_value('#TR2',fcsheader_main, mnemonic_separator);
+
 else
     hm = msgbox([FileName,': The file can not be read (Unsupported FCS type)'],'FCS reading info','warn');
     fcsdat = []; fcshdr = []; fcsdatscaled= []; fcsdat_comp= [];

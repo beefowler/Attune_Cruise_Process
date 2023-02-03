@@ -42,7 +42,7 @@ function process_wrapper_2021(basepath)
 
 step1 = 0; %Generate FCSfileinfo
 
-step2 = 1; %make new class files
+step2 = 0; %make new class files
     assign_class_function = 'assign_class_EN644'; 
     filetype2exclude = {'fcb_bead'; 'FCB_bead'; '(lab test)'; 'Dockwater'; 'Rinses'; "Filter config"; "SFD_AR29_Grazer";}; %needed for Step2
     OD2setting = 'GL1'; %where was the OD2 filter on this cruise? 'SSC', 'GL1', or 'None' 
@@ -64,7 +64,7 @@ step3 = 0; %Assign beads to make beadstats table and bead plots
 step4 = 0; %set up calibration, only if OD2setting is 'GL1'
     SSCDIM = 'A'; %needed for Step 4 & 5, SSCDIM = 'A' or 'H'
     
-step5 = 1; %apply calibration to add volume to class files 
+step5 = 0; %apply calibration to add volume to class files 
     %Check SSCDIM above
     
 step6 = 0; %Generate attune table
@@ -138,7 +138,7 @@ end
 
 %% STEP 6
 if step6
-    generate_attune_table_EDI(classpath, [outpath 'FCSfileinfo.mat'])
+    generate_attune_table(classpath, [outpath 'FCSfileinfo.mat'])
     %this function will generate attune table for files with class files
     %only, generally beads are removed
 end
