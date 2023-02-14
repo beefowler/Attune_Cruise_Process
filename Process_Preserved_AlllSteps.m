@@ -11,29 +11,26 @@
 clear all
 
 % % Manually choose cruise to process
-basepath = '\\sosiknas1\Lab_data\Attune\cruise_data\20180131_EN608\preserved';
-restpath =  'https://nes-lter-data.whoi.edu/api/ctd/en608/';
+basepath = '\\sosiknas1\Lab_data\Attune\cruise_data\20191005_AR39B\preserved';
+cruisename = 'AR39B';
 
-cruisename = 'EN608';
-elogpath = '';
-%'\\sosiknas1\Lab_data\LTER\20201013_EN657\eLog\R2R_ELOG_EN657_FINAL_EVENTLOG_20201018_134037.csv'; %set to '' if there are no discrete underway samples 
+%%
+restpath =  'https://nes-lter-data.whoi.edu/api/ctd/en657/';
+
+elogpath = '\\sosiknas1\Lab_data\LTER\20201013_EN657\eLog\R2R_ELOG_EN657_FINAL_EVENTLOG_20201018_134037.csv'; %set to '' if there are no discrete underway samples 
 %
-uw_fullname = 'https://nes-lter-data.whoi.edu/api/underway/en668.csv';
+uw_fullname = 'https://nes-lter-data.whoi.edu/api/underway/en657.csv';
 
 
 Step1 = 0; 
 
 %% Set up 
 
-fpath = [basepath filesep 'FCS' filesep];
-outpath = [basepath filesep 'outputs' filesep];
-classpath = [outpath 'class' filesep];
-awspath = [basepath filesep 'aws\'];
-
 % some file structure setup  
 fpath = [basepath filesep 'FCS' filesep];
 outpath = [basepath filesep 'outputs' filesep];
 classpath = [outpath 'class' filesep];
+awspath = [basepath filesep 'aws\'];
 
 if ~exist(outpath, 'dir')
     mkdir(outpath)
@@ -151,7 +148,7 @@ FCSList.trigger_hv2 = trigger_hv2;
 
 save([outpath 'FCSList.mat'], 'FCSList')
 
-clearvars -except basepath restpath fpath outpath classpath awspath cruisename elogpath uw_fullname
+clearvars -except basepath restpath fpath outpath classpath awspath cruisename elogpath uw_fullname cruisename
 
 end
 
@@ -192,7 +189,7 @@ for i = 1:height(T)
                 ind = find(awslist == uwname); 
             else
 
-            ind = find(awslist == strcat("C", num2str(T.Cast(i), '%03.f'), 'N', num2str(T.Niskin(i), '%02.f'), '.aws')); 
+            ind = find(awslist == strcat("C", num2str(T.Cast(i), '%02.f'), 'N', num2str(T.Niskin(i), '%02.f'), '.aws')); 
             end
 
             awsfilename = awslist(ind) ;
@@ -238,7 +235,7 @@ for i = 1:height(T)
 
     save([outpath 'Gated_Table.mat'], 'gated_table', 'no_aws_files')
 
-clearvars -except basepath restpath fpath outpath classpath awspath cruisename elogpath uw_fullname
+clearvars -except basepath restpath fpath outpath classpath awspath cruisename elogpath uw_fullname cruisename
 
 
 
@@ -322,7 +319,7 @@ for s = 1:height(temp_g)
     stupiddate = temp.dateTime8601(UWnum); 
     stupiddate = replace(stupiddate, 'T', ' ');
         stupiddate = replace(stupiddate, '0000', '00:00');
-    gated_table.date_sampled{ind(s)} = stupiddate;
+    gated_table.date_sampled(ind(s)) = stupiddate;
     datenums(s) = datenum(temp.GPS_Time(UWnum)); 
 end
 
@@ -486,7 +483,7 @@ end
 %overwrite saved gated table with metadata
 save([outpath '\Gated_Table.mat'], 'gated_table', '-append');
 
-clearvars -except basepath restpath fpath outpath classpath awspath cruisename elogpath uw_fullname
+clearvars -except basepath restpath fpath outpath classpath awspath cruisename elogpath uw_fullname 
 
 
 %% Step 4 - classify using gate_table
@@ -671,7 +668,7 @@ gated_table.Pro_conc = pro_conc;
 save([outpath '\Gated_Table.mat'], 'gated_table', 'no_aws_files'); 
 
 
-clearvars -except basepath restpath fpath outpath classpath awspath 
+clearvars -except basepath restpath fpath outpath classpath awspath  cruisename
 
 
 
@@ -868,13 +865,15 @@ end
     save([outpath '\Gated_Table.mat'], 'gated_table', 'no_aws_files');
 
 
-clearvars -except basepath restpath fpath outpath classpath awspath 
+clearvars -except basepath restpath fpath outpath classpath awspath cruisename
 
 % 
 %% Step 6 - convert gated table to Summary table 
 
 G = load([outpath '\Gated_Table.mat']);
 gated_table = G.gated_table; 
+
+%gated_table(contains(gated_table.fcslist, 'lower_thresh'), :) = []; 
 
 
 %first some counting of underway samples
@@ -890,6 +889,8 @@ gated_table = G.gated_table;
 ia = 1:max(G); 
 
 CNTable = table; 
+cruisevec = repmat(cruisename, length(C), 1) ;
+CNTable.cruise = cruisevec;
 CNTable.Cast = C; 
 CNTable.Niskin = N; 
 
@@ -915,15 +916,16 @@ for g = 1:max(G)
     CNTable.potemp090c(g) = temp.potemp090c(1);
     CNTable.depth_m(g) = temp.depth_m(1);
     CNTable.date_sampled(g) = temp.date_sampled(1); 
+    CNTable.date_processed(g) = temp.Date_processed(1); 
 
  
     %pick file to count Syn
-    ind = find(contains(temp.fcslist, 'phyto_PE'));
+    ind = find(contains(temp.fcslist, 'phyto_PE') & ~ismissing(temp.awsfilename));
     use_euk_for_syn = 0; 
     if length(ind) == 1 %if only one fcs file of this type, use that. 
-        CNTable.Synfile(g) = temp.fcslist(ind); 
-        syncol(g) = temp.Syn_conc(ind); 
-        vols(g, 2) = temp.median_volumes_syn(ind); 
+            CNTable.Synfile(g) = temp.fcslist(ind); 
+            syncol(g) = temp.Syn_conc(ind); 
+            vols(g, 2) = temp.median_volumes_syn(ind); 
     elseif ~isempty(ind) %if more than 1, get most recent
         timesince = []; 
         for f = 1:length(ind)
@@ -942,7 +944,7 @@ for g = 1:max(G)
 
 
     %now pick file to count Euks
-    ind = find(contains(temp.fcslist, 'phyto_CHL') & ~contains(temp.fcslist, 'pro', 'IgnoreCase', true));
+    ind = find(contains(temp.fcslist, 'phyto_CHL') & ~contains(temp.fcslist, 'pro', 'IgnoreCase', true) & ~ismissing(temp.awsfilename));
     if length(ind) == 1 %if only one fcs file of this type, use that. 
          if use_euk_for_syn
           CNTable.Synfile(g) = temp.fcslist(ind); 
@@ -981,7 +983,7 @@ for g = 1:max(G)
     end
 
     %pick file to count Prochlorococcus
-    ind = find(contains(temp.fcslist, 'pro', 'IgnoreCase', true));
+    ind = find(contains(temp.fcslist, 'pro', 'IgnoreCase', true) & ~ismissing(temp.awsfilename));
     noprofile = 1; 
     if isempty(ind)
         CNTable.ProFile{g} = '';
@@ -1015,7 +1017,7 @@ for g = 1:max(G)
     %pick file to count bacteria, and subtract prochlorococs
     %if a pro file exists and there is no pro gate in bacteria file, then
     %subtract concentration 
-    ind = find(contains(temp.fcslist, 'hbac'));
+    ind = find(contains(temp.fcslist, 'hbac') & ~ismissing(temp.awsfilename));
     if length(ind) == 1 %if only one fcs file of this type, use that. 
         CNTable.BacteriaFile(g) =  temp.fcslist(ind);
 
@@ -1059,10 +1061,7 @@ CNTable.low_pe_euk_per_ml = lp_eukcol;
 CNTable.high_pe_euk_per_ml = hp_eukcol; 
 
 
-%reorder so it isn't so hard to see
-CNTable = CNTable(:, [1:10 15 11 14 18 19 12 16 13 17]); 
-
-   CNTable.median_volumes_euk = vols(:,1);
+    CNTable.median_volumes_euk = vols(:,1);
     CNTable.median_volumes_syn = vols(:,2);
     CNTable.median_volumes_hetbact = vols(:,3);
     CNTable.median_volumes_pro = vols(:,4);
@@ -1072,7 +1071,7 @@ CNTable = CNTable(:, [1:10 15 11 14 18 19 12 16 13 17]);
 
 save([outpath '\SummaryTable.mat'], 'CNTable')
 
-clearvars -except basepath restpath fpath outpath classpath awspath 
+clearvars -except basepath restpath fpath outpath classpath awspath cruisename
 
 %% function needed for Step 2
 
@@ -1114,16 +1113,22 @@ for i = 1:numpanels %make an axis for each polygon
         gate_order = [gate_order(gate_order == find(strcmp(gate_names, 'Phyto')))  gate_order(gate_order ~= find(strcmp(gate_names, 'Phyto')))];
         end
 
+        legend_gate_order = [];      %have to check that no gates were empty so that legend lines up. 
+
         for g = gate_order
             hold on
             loglog(fcsdat(logical(gate_assignments(g,:)), x_ch), fcsdat(logical(gate_assignments(g,:)), y_ch), '.')
+            if sum(logical(gate_assignments(g,:))) ~= 0
+                legend_gate_order = [legend_gate_order g];
+            end
+
         end
         xlabel(polygon_vars{1, i})
         ylabel(polygon_vars{2,i})
     end
 
     if i == numpanels
-        legendlabels = {'' gate_names{gate_order}};
+        legendlabels = {'' gate_names{legend_gate_order}};
         legend(legendlabels, 'interpreter', 'none')
     end
 
