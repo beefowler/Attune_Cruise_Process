@@ -14,6 +14,8 @@ clear all
 basepath = '\\sosiknas1\Lab_data\Attune\cruise_data\20190705_TN368\preserved\';
 cruisename = 'TN368';
 
+hierarchical_gates = ''  %set to 'True' or 'False'; 
+
 %%
 restpath = '\\sosiknas1\Lab_data\SPIROPA\20190705_TN368\fromOlga\tn368_bottle_data_Jul_2022_table.mat'; 
 % 'https://nes-lter-data.whoi.edu/api/ctd/en644/';
@@ -24,7 +26,7 @@ uw_fullname = ''%'https://nes-lter-data.whoi.edu/api/underway/en657.csv';
 
 
 Step1 = 1; 
-Step5only = 1; 
+Step5only = 0; 
 
 %% Set up 
 
@@ -219,8 +221,12 @@ for i = 1:height(T)
             %if isempty(awsfile)%I truly don't understand how this can still be empty
              %               awsfile = strcat(awspath, '', runtypes(k), '\', awslist(ind));
             %end
-            [gate_assignments, polygon_names, polygon_vars, polygon_vals, gate_names, gate_logic_legible] = ApplyAWSgates_hierarchical(awsfile, fcsdat, fcshdr); 
-            
+            if hierarchical_gates == 'True'
+                 [gate_assignments, polygon_names, polygon_vars, polygon_vals, gate_names, gate_logic_legible] = ApplyAWSgates_hierarchical(awsfile, fcsdat, fcshdr);
+            elseif hierarchical_gates == 'False'
+                [gate_assignments, polygon_names, polygon_vars, polygon_vals, gate_names, gate_logic_legible] = ApplyAWSgates(awsfile, fcsdat, fcshdr); 
+            end
+
             gated_table.awsfilename(i) = awsfilename; 
             gated_table.gate_names{i} = gate_names; 
             gated_table.gate_assignments{i} = gate_assignments; 
