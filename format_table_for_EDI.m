@@ -2,6 +2,8 @@
 %% 
 
 dirlist = {'\\sosiknas1\Lab_data\Attune\cruise_data\20180131_EN608\preserved'; 
+    '\\sosiknas1\Lab_data\Attune\cruise_data\20190820_EN644\preserved';
+    '\\sosiknas1\Lab_data\Attune\cruise_data\20190921_AR38\preserved';
     '\\sosiknas1\Lab_data\Attune\cruise_data\20191005_AR39B\preserved';
     '\\sosiknas1\Lab_data\Attune\cruise_data\20200201_EN649\preserved';
     '\\sosiknas1\Lab_data\Attune\cruise_data\20200725_EN655\preserved2';

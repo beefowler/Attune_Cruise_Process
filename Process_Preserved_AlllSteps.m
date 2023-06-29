@@ -11,18 +11,20 @@
 clear all
 
 % % Manually choose cruise to process
-basepath = '\\sosiknas1\Lab_data\Attune\cruise_data\20191005_AR39B\preserved';
-cruisename = 'AR39B';
+basepath = '\\sosiknas1\Lab_data\Attune\cruise_data\20190705_TN368\preserved\';
+cruisename = 'TN368';
 
 %%
-restpath =  'https://nes-lter-data.whoi.edu/api/ctd/en657/';
+restpath = '\\sosiknas1\Lab_data\SPIROPA\20190705_TN368\fromOlga\tn368_bottle_data_Jul_2022_table.mat'; 
+% 'https://nes-lter-data.whoi.edu/api/ctd/en644/';
 
-elogpath = '\\sosiknas1\Lab_data\LTER\20201013_EN657\eLog\R2R_ELOG_EN657_FINAL_EVENTLOG_20201018_134037.csv'; %set to '' if there are no discrete underway samples 
+elogpath = ''; %'\\sosiknas1\Lab_data\LTER\20201013_EN657\eLog\R2R_ELOG_EN657_FINAL_EVENTLOG_20201018_134037.csv'; %set to '' if there are no discrete underway samples 
 %
-uw_fullname = 'https://nes-lter-data.whoi.edu/api/underway/en657.csv';
+uw_fullname = ''%'https://nes-lter-data.whoi.edu/api/underway/en657.csv';
 
 
-Step1 = 0; 
+Step1 = 1; 
+Step5only = 1; 
 
 %% Set up 
 
@@ -39,6 +41,7 @@ if ~exist(classpath, 'dir')
     mkdir(classpath)
 end
 
+if ~Step5only
 
 %% Step 1 - make FCSlist
 
@@ -216,7 +219,7 @@ for i = 1:height(T)
             %if isempty(awsfile)%I truly don't understand how this can still be empty
              %               awsfile = strcat(awspath, '', runtypes(k), '\', awslist(ind));
             %end
-            [gate_assignments, polygon_names, polygon_vars, polygon_vals, gate_names, gate_logic_legible] = ApplyAWSgates2(awsfile, fcsdat, fcshdr); 
+            [gate_assignments, polygon_names, polygon_vars, polygon_vals, gate_names, gate_logic_legible] = ApplyAWSgates_hierarchical(awsfile, fcsdat, fcshdr); 
             
             gated_table.awsfilename(i) = awsfilename; 
             gated_table.gate_names{i} = gate_names; 
@@ -238,7 +241,6 @@ for i = 1:height(T)
 clearvars -except basepath restpath fpath outpath classpath awspath cruisename elogpath uw_fullname cruisename
 
 
-
 %% Step 3 - add metadata to gated table
 
 T = load([outpath '\FCSlist.mat']);
@@ -246,6 +248,7 @@ T = T.FCSList;
 
 G = load([outpath '\Gated_Table.mat']);
 gated_table = G.gated_table;
+
 
 
 if startsWith(restpath, 'https')
@@ -290,12 +293,45 @@ end
 else %use mat file for SPIROPA Cruises not the same format >:(
 
 load(restpath)
-castlist = unique(BTL.cast);
-FilesToADD_w_meta = table(); 
+temp = importdata('\\sosiknas1\Lab_data\SPIROPA\20190705_TN368\fromOlga\tn368_niskin_pressure_depth.txt');    
+bottle_depth = temp.data; bottle_depth(:,4) = []; clear temp
 
-for c = 1:length(castlist)
+castlist = unique(gated_table.Cast);
+
+for f = 1:height(gated_table)
+
+    if gated_table.Cast(f) == 0 
+        continue
+    end
+
+    temp = BTL(BTL.Cast == gated_table.Cast(f), :); 
+
+    %first get cast metdata
+    gated_table.Latitude(f) = temp.Latitude_decimalDeg(1);
+    gated_table.Longitude(f) = temp.Longitude_decimalDeg(1);
+    gated_table.date_sampled(f) = temp.datetime(1);
+
+   
+    %no station names for SPIROPA cruises
+    gated_table.nearest_station{f} = '';
+
+
+    %now add depths for each niskin number
+    if sum(bottle_depth(:,1) == gated_table.Cast(f) & bottle_depth(:,2) == gated_table.Niskin(f)) > 0
+        gated_table.salinity(f) = NaN;
+        gated_table.potemp090c(f) = NaN;
+        gated_table.depth_m(f) = bottle_depth((bottle_depth(:,1) == gated_table.Cast(f) & bottle_depth(:,2) == gated_table.Niskin(f)), 3);
+    end
+
 
 end
+
+    gated_table.Longitude(gated_table.Latitude == 0) = NaN;
+    gated_table.salinity(gated_table.Latitude == 0) = NaN;
+    gated_table.potemp090c(gated_table.Latitude == 0) = NaN;
+    gated_table.depth_m(gated_table.Latitude == 0) = NaN;
+    gated_table.Latitude(gated_table.Latitude == 0) = NaN;
+
 
 
 end
@@ -487,8 +523,6 @@ clearvars -except basepath restpath fpath outpath classpath awspath cruisename e
 
 
 %% Step 4 - classify using gate_table
-T = load([outpath '\FCSlist.mat']);
-T = T.FCSList; 
 
 G = load([outpath '\Gated_Table.mat']);
 gated_table = G.gated_table; 
@@ -671,6 +705,7 @@ save([outpath '\Gated_Table.mat'], 'gated_table', 'no_aws_files');
 clearvars -except basepath restpath fpath outpath classpath awspath  cruisename
 
 
+end
 
 %% Step 5 - size calibrate and create class files 
 
@@ -867,6 +902,7 @@ end
 
 clearvars -except basepath restpath fpath outpath classpath awspath cruisename
 
+if ~Step5only 
 % 
 %% Step 6 - convert gated table to Summary table 
 
@@ -874,6 +910,7 @@ G = load([outpath '\Gated_Table.mat']);
 gated_table = G.gated_table; 
 
 %gated_table(contains(gated_table.fcslist, 'lower_thresh'), :) = []; 
+gated_table(gated_table.Cast == 0, :) = []; 
 
 
 %first some counting of underway samples
@@ -970,7 +1007,7 @@ for g = 1:max(G)
         if use_euk_for_syn
             CNTable.Synfile(g) = temp.fcslist(ind(truind)) ; 
             syncol(g) = temp.Syn_conc(ind(truind)); 
-            vols(g, 2) = temp.median_volumes_syn(ind(truind)); 
+            %vols(g, 2) = temp.median_volumes_syn(ind(truind)); 
         end
         CNTable.Eukfile(g) = temp.fcslist(ind(truind)); 
         eukcol(g) = temp.Euk_conc(ind(truind)); 
@@ -1072,6 +1109,8 @@ CNTable.high_pe_euk_per_ml = hp_eukcol;
 save([outpath '\SummaryTable.mat'], 'CNTable')
 
 clearvars -except basepath restpath fpath outpath classpath awspath cruisename
+
+end
 
 %% function needed for Step 2
 
