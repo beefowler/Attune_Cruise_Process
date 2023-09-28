@@ -14,12 +14,8 @@ dirlist = {'\\sosiknas1\Lab_data\Attune\cruise_data\20180131_EN608\preserved';
     '\\sosiknas1\Lab_data\Attune\cruise_data\20220216_AT46\preserved'}
 
 Attune_Discrete_Table = table(); 
-edipath = ['\\sosiknas1\Lab_data\Attune\EDI_data_packages\Attune_transect_FCMdiscrete\attune-transect-discrete-samples.csv'];
 
 
-for c = 1:length(dirlist)
-
-    basepath = dirlist{c};
 
 fpath = [basepath filesep 'FCS' filesep];
 outpath = [basepath filesep 'outputs' filesep];

@@ -11,18 +11,22 @@
 clear all
 
 % % Manually choose cruise to process
-basepath = '\\sosiknas1\Lab_data\Attune\cruise_data\20190705_TN368\preserved\';
-cruisename = 'TN368';
+basepath = '\\sosiknas1\Lab_data\Attune\cruise_data\20180131_EN608\preserved';
+cruisename = 'EN608';
 
-hierarchical_gates = ''  %set to 'True' or 'False'; 
+hierarchical_gates = 'True';  %set to 'True' or 'False'; 
 
 %%
-restpath = '\\sosiknas1\Lab_data\SPIROPA\20190705_TN368\fromOlga\tn368_bottle_data_Jul_2022_table.mat'; 
+restpath = 'https://nes-lter-data.whoi.edu/api/ctd/en608/';
+%'\\sosiknas1\Lab_data\OTZ\20200311_AR43\ctd\ar43_ctd_bottles.csv';
+% '\\sosiknas1\Lab_data\Attune\cruise_data\20210512_SG2105\EXPORTS2021_SDG2105_BottleFile_R0_20210720T124833.csv';
+%
+%'\\sosiknas1\Lab_data\SPIROPA\20190705_TN368\fromOlga\tn368_bottle_data_Jul_2022_table.mat'; 
 % 'https://nes-lter-data.whoi.edu/api/ctd/en644/';
 
-elogpath = ''; %'\\sosiknas1\Lab_data\LTER\20201013_EN657\eLog\R2R_ELOG_EN657_FINAL_EVENTLOG_20201018_134037.csv'; %set to '' if there are no discrete underway samples 
+elogpath = '';%'\\sosiknas1\Lab_data\LTER\20201013_EN657\eLog\R2R_ELOG_EN657_FINAL_EVENTLOG_20201018_134037.csv'; %set to '' if there are no discrete underway samples 
 %
-uw_fullname = ''%'https://nes-lter-data.whoi.edu/api/underway/en657.csv';
+uw_fullname = ''; %'https://nes-lter-data.whoi.edu/api/underway/en657.csv';
 
 
 Step1 = 1; 
@@ -43,6 +47,9 @@ if ~exist(classpath, 'dir')
     mkdir(classpath)
 end
 
+
+save([outpath '\Processing_variables.mat'])
+%%
 if ~Step5only
 
 %% Step 1 - make FCSlist
@@ -111,12 +118,13 @@ save([outpath 'FCSList.mat'], 'FCSList')
 
 % add trigger settings and info to FCSlist
 
-Vol_ml = nan(height(FCSList), 1);
+Vol_analyzed_ml = nan(height(FCSList), 1);
+Vol_ml = nan(height(FCSList), 1); 
 Date_processed = cell(height(FCSList), 1);
 trigger_1 = Date_processed;
 trigger_2 = Date_processed;
-trigger_hv1 = Vol_ml;
-trigger_hv2 = Vol_ml;
+trigger_hv1 = Vol_analyzed_ml;
+trigger_hv2 = Vol_analyzed_ml;
 
 for i = 1:height(FCSList)
     filename = FCSList{i, 1};
@@ -124,7 +132,8 @@ for i = 1:height(FCSList)
     [fcsdat, fcshdr] = fca_readfcs(filename);
 
     Date_processed{i} = fcshdr.date;
-    Vol_ml(i) = fcshdr.VOL ./ 1e6;
+    Vol_analyzed_ml(i) = .8.*fcshdr.VOL ./ 1e6; %changed to 80% based on uniform time gate
+    Vol_ml(i) = fcshdr.VOL ; 
 
     trigger_1{i} = fcshdr.trigger1;
     trigger_2{i} = fcshdr.trigger2;
@@ -145,7 +154,7 @@ for i = 1:height(FCSList)
 end
 
 FCSList.Date_processed = Date_processed;
-FCSList.Vol_ml = Vol_ml;
+FCSList.Vol_analyzed_ml = Vol_analyzed_ml;
 FCSList.trigger_1 = trigger_1;
 FCSList.trigger_2 = trigger_2;
 FCSList.trigger_hv1 = trigger_hv1;
@@ -153,7 +162,7 @@ FCSList.trigger_hv2 = trigger_hv2;
 
 save([outpath 'FCSList.mat'], 'FCSList')
 
-clearvars -except basepath restpath fpath outpath classpath awspath cruisename elogpath uw_fullname cruisename
+clearvars -except basepath restpath fpath outpath classpath awspath cruisename elogpath uw_fullname cruisename hierarchical_gates Step5only
 
 end
 
@@ -210,8 +219,19 @@ for i = 1:height(T)
 
         %track whether no aws file chosen 
         if isempty(awsfilename)
-            awsfilename = input(['Please choose aws file for this fcs: ' filename 'If none or does not matter hit enter'], 's');
-            awsfile = strcat(awspath, '', runtypes(k), '\', awsfilename); 
+            
+            temp = split(filename, '_'); 
+            temp = temp{end}; 
+
+            awsfilename = regexprep(temp, 'fcs', 'aws'); 
+            if isfile(strcat(awspath, '', runtypes(k), '\', awsfilename)); 
+                  awsfile = strcat(awspath, '', runtypes(k), '\', awsfilename); 
+            else
+                awsfilename = []; 
+                %if you want manual inputs
+                %awsfilename = input(['Please choose aws file for this fcs: ' filename 'If none or does not matter hit enter'], 's');
+                %awsfile = strcat(awspath, '', runtypes(k), '\', awsfilename); 
+            end 
         end
         if isempty(awsfilename) %still empty 
             no_aws_files = [no_aws_files; string(filename)]; 
@@ -221,13 +241,13 @@ for i = 1:height(T)
             %if isempty(awsfile)%I truly don't understand how this can still be empty
              %               awsfile = strcat(awspath, '', runtypes(k), '\', awslist(ind));
             %end
-            if hierarchical_gates == 'True'
+            if strcmp(hierarchical_gates, 'True')
                  [gate_assignments, polygon_names, polygon_vars, polygon_vals, gate_names, gate_logic_legible] = ApplyAWSgates_hierarchical(awsfile, fcsdat, fcshdr);
-            elseif hierarchical_gates == 'False'
-                [gate_assignments, polygon_names, polygon_vars, polygon_vals, gate_names, gate_logic_legible] = ApplyAWSgates(awsfile, fcsdat, fcshdr); 
+            elseif strcmp(hierarchical_gates, 'False')
+                [gate_assignments, polygon_names, polygon_vars, polygon_vals, gate_names, gate_logic_legible] = ApplyAWSgates2(awsfile, fcsdat, fcshdr); 
             end
 
-            gated_table.awsfilename(i) = awsfilename; 
+            gated_table.awsfilename{i} = awsfilename; 
             gated_table.gate_names{i} = gate_names; 
             gated_table.gate_assignments{i} = gate_assignments; 
             gated_table.gate_logic{i} = gate_logic_legible; 
@@ -242,9 +262,9 @@ for i = 1:height(T)
     
     end
 
-    save([outpath 'Gated_Table.mat'], 'gated_table', 'no_aws_files')
+    save([outpath 'Gated_Table.mat'], 'gated_table', 'no_aws_files', 'hierarchical_gates')
 
-clearvars -except basepath restpath fpath outpath classpath awspath cruisename elogpath uw_fullname cruisename
+clearvars -except basepath restpath fpath outpath classpath awspath cruisename elogpath uw_fullname cruisename hierarchical_gates Step5only
 
 
 %% Step 3 - add metadata to gated table
@@ -254,7 +274,6 @@ T = T.FCSList;
 
 G = load([outpath '\Gated_Table.mat']);
 gated_table = G.gated_table;
-
 
 
 if startsWith(restpath, 'https')
@@ -296,11 +315,41 @@ end
     gated_table.depth_m(gated_table.Latitude == 0) = NaN;
     gated_table.Latitude(gated_table.Latitude == 0) = NaN;
 
-else %use mat file for SPIROPA Cruises not the same format >:(
-
+else
+    if endsWith(restpath, 'mat')
+ %use mat file for SPIROPA Cruises not the same format >:(
 load(restpath)
-temp = importdata('\\sosiknas1\Lab_data\SPIROPA\20190705_TN368\fromOlga\tn368_niskin_pressure_depth.txt');    
-bottle_depth = temp.data; bottle_depth(:,4) = []; clear temp
+%temp = importdata('\\sosiknas1\Lab_data\SPIROPA\20190705_TN368\fromOlga\tn368_niskin_pressure_depth.txt');    
+%bottle_depth = temp.data; %bottle_depth(:,4) = []; %clear temp
+    elseif endsWith(restpath, 'csv')
+
+        BTL = readtable(restpath); 
+
+        %have to rename columns to match 
+       if strcmp('cast',BTL.Properties.VariableNames)
+        BTL.Cruise = []; %match column numbers for other cruises. 
+
+        BTL.Cast = BTL.cast; 
+        BTL.Niskin = BTL.niskin;
+        BTL.Latitude_decimalDeg = BTL.latitude; 
+        BTL.Longitude_decimalDeg = BTL.longitude; 
+
+        for i = 1:height(BTL)
+            tempdate = BTL.date{i};
+            BTL.datetime(i) = datetime(tempdate(1:19), 'InputFormat', 'yyyy-MM-dd HH:mm:SS');
+        end
+
+       else %SG cruise
+            BTL.Latitude_decimalDeg = BTL.Lat; 
+            BTL.Longitude_decimalDeg = BTL.Lon; 
+            BTL.datetime = BTL.sdate; 
+            BTL.Niskin = BTL.BottleNo; 
+            BTL.depsm = BTL.depth; 
+            BTL.potemp090c = BTL.potTemp1; 
+            BTL.sal00 = BTL.sal1; 
+       end
+
+    end
 
 castlist = unique(gated_table.Cast);
 
@@ -309,6 +358,7 @@ for f = 1:height(gated_table)
     if gated_table.Cast(f) == 0 
         continue
     end
+
 
     temp = BTL(BTL.Cast == gated_table.Cast(f), :); 
 
@@ -323,10 +373,10 @@ for f = 1:height(gated_table)
 
 
     %now add depths for each niskin number
-    if sum(bottle_depth(:,1) == gated_table.Cast(f) & bottle_depth(:,2) == gated_table.Niskin(f)) > 0
-        gated_table.salinity(f) = NaN;
-        gated_table.potemp090c(f) = NaN;
-        gated_table.depth_m(f) = bottle_depth((bottle_depth(:,1) == gated_table.Cast(f) & bottle_depth(:,2) == gated_table.Niskin(f)), 3);
+    if sum(temp.Cast == gated_table.Cast(f) & temp.Niskin == gated_table.Niskin(f)) > 0
+        gated_table.salinity(f) =  temp.sal00(temp.Cast == gated_table.Cast(f) & temp.Niskin == gated_table.Niskin(f));
+        gated_table.potemp090c(f) =  temp.potemp090c(temp.Cast == gated_table.Cast(f) & temp.Niskin == gated_table.Niskin(f));
+        gated_table.depth_m(f) = temp.depsm(temp.Cast == gated_table.Cast(f) & temp.Niskin == gated_table.Niskin(f));
     end
 
 
@@ -525,7 +575,7 @@ end
 %overwrite saved gated table with metadata
 save([outpath '\Gated_Table.mat'], 'gated_table', '-append');
 
-clearvars -except basepath restpath fpath outpath classpath awspath cruisename elogpath uw_fullname 
+clearvars -except basepath restpath fpath outpath classpath awspath cruisename elogpath uw_fullname  hierarchical_gates Step5only
 
 
 %% Step 4 - classify using gate_table
@@ -534,16 +584,17 @@ G = load([outpath '\Gated_Table.mat']);
 gated_table = G.gated_table; 
 no_aws_files = G.no_aws_files; 
 
+
 % Here is where we decide which gates we are interested in and how we will find them
 
     % gates_of_interest = {'syn'; 'Syn'; 'Euks'; 'euks'; 'pro'; 'Pro'; 'bacteria'; 'Bacteria'}; 
 
-    classnames = {'Euks == 1'; 'Syn == 2'; 'Bacteria == 3'; 'Pro == 4'; 'LowPE_Euks = 5'; 'HighPE_Euks - 6'};
+    classnames = {'Euks == 1'; 'Syn == 2'; 'Bacteria == 3'; 'Pro == 4'; 'LowPE_Euks = 5'; 'HighPE_Euks = 6'};
 
     class = cell(1,height(gated_table)); 
     syn_conc = nan(height(gated_table),1); 
     euk_conc = syn_conc; 
-    bact_conc = syn_conc; 
+    bact_incl_pro_conc = syn_conc; 
     pro_conc = syn_conc; 
     lp_euk_conc = syn_conc; 
     hp_euk_conc = syn_conc; 
@@ -580,8 +631,17 @@ for i = 1:height(gated_table)
             gate_num_5 = find(strcmp(gate_names, 'LowP_Euk')); 
             class_i(class_i == 0' & gate_assign_i(gate_num_5, :)) = 5; 
     end
+
+    if sum(strcmp(gate_names, 'LowPE_Euk'))
+            gate_num_5 = find(strcmp(gate_names, 'LowPE_Euk')); 
+            class_i(class_i == 0' & gate_assign_i(gate_num_5, :)) = 5; 
+    end
     if sum(strcmp(gate_names, 'HighP_Euk'))
             gate_num_6 = find(strcmp(gate_names, 'HighP_Euk')); 
+            class_i(class_i == 0' & gate_assign_i(gate_num_6, :)) = 6; 
+    end
+    if sum(strcmp(gate_names, 'HighPE_Euk'))
+            gate_num_6 = find(strcmp(gate_names, 'HighPE_Euk')); 
             class_i(class_i == 0' & gate_assign_i(gate_num_6, :)) = 6; 
     end
 
@@ -597,7 +657,8 @@ for i = 1:height(gated_table)
 
 
 
-    %next bacteria 
+    %next bacteria, may include prochlorococcus, but those will be
+    %reassigned below
     if sum(strcmp(gate_names, 'Bacteria'))
             gate_num_b = find(strcmp(gate_names, 'Bacteria')); 
             class_i(class_i == 0' & gate_assign_i(gate_num_b, :)) = 3; 
@@ -606,25 +667,29 @@ for i = 1:height(gated_table)
             gate_num_b = find(strcmp(gate_names, 'bacteria')); 
             class_i(class_i == 0' & gate_assign_i(gate_num_b, :)) = 3; 
     end
+    if sum(strcmp(gate_names, 'BacPro'))
+            gate_num_b = find(strcmp(gate_names, 'BacPro')); 
+            class_i(class_i == 0' & gate_assign_i(gate_num_b, :)) = 3; 
+    end
 
 
 
-    %next pro 
+    %next assign pro, allowed to overwrite bacteria label 
     if sum(strcmp(gate_names, 'pro'))
             gate_num_4 = find(strcmp(gate_names, 'pro')); 
-            class_i(class_i == 0' & gate_assign_i(gate_num_4, :)) = 4; 
+            class_i(logical(gate_assign_i(gate_num_4, :))) = 4; 
     end
     if sum(strcmp(gate_names, 'Pro'))
             gate_num_4 = find(strcmp(gate_names, 'Pro')); 
-            class_i(class_i == 0' & gate_assign_i(gate_num_43, :)) = 4; 
+            class_i(logical(gate_assign_i(gate_num_4, :))) = 4; 
     end
     if sum(strcmp(gate_names, 'Euk_sm'))
             gate_num_4 = find(strcmp(gate_names, 'Euk_sm')); 
-            class_i(class_i == 0' & gate_assign_i(gate_num_4, :)) = 4; 
+            class_i(logical(gate_assign_i(gate_num_4, :))) = 4; 
     end
     if sum(strcmp(gate_names, 'Proc'))
             gate_num_4 = find(strcmp(gate_names, 'Proc')); 
-            class_i(class_i == 0' & gate_assign_i(gate_num_4, :)) = 4; 
+            class_i(logical(gate_assign_i(gate_num_4, :))) = 4; 
     end
 
 
@@ -636,49 +701,77 @@ for i = 1:height(gated_table)
     %onto calculating concentrations
     concent_i = nan(1, 6);
 
+    g = gated_table.gate_logic{i}; 
+
+    % this is deleted since now all gates have post hoc 80% time window
+    % added. 
+    % if sum(gates_that_use_time) ~= 0 %go get volume included in time_to_include
+    %     p = gated_table.polygon_vars{i}; 
+    %     emptyCells = cellfun(@isempty,p) ;
+    %     [a,b] = find(emptyCells); 
+    %     p{a,b} = '';
+    %     [a,b] = find(cellfun(@(x) contains(x, 'Time'), p));
+    %     pv = gated_table.polygon_vals{i} ;
+    %     vals = pv{b};
+    %     t_val = vals(:,1); %this is the actual value range used for the Time variable
+
+
+        % matdate1 = [fcshdr.date ' ' fcshdr.starttime];
+        % matdate1 = datenum(matdate1, 'dd-mmm-yyyy HH:MM:SS');
+        % matdate2 = [fcshdr.date ' ' fcshdr.stoptime];
+        % matdate2 = datenum(matdate2, 'dd-mmm-yyyy HH:MM:SS');
+        % 
+        % fulltime = 1000*etime(datevec(matdate2), datevec(matdate1)); %this should be 60 seconds * 1000 but just to make sure
+        % 
+        % fraction_of_time = (t_val(2) - t_val(1))./fulltime;
+
+    %volume_considered = fraction_of_time.*gated_table.Vol_analyzed_ml(i);
+    %Vol_analyzed_ml column has already been adjusted to 80% total sample volume
+
+
     if exist('gate_num_1')
-        concent_i(1) = sum(class_i == 1)./gated_table.Vol_ml(i); 
+            concent_i(1) = sum(class_i == 1)./gated_table.Vol_analyzed_ml(i);
     end
 
     if exist('gate_num_2')
-        concent_i(2) = sum(class_i == 2)./gated_table.Vol_ml(i); 
+            concent_i(2) = sum(class_i == 2)./gated_table.Vol_analyzed_ml(i);
+    end
+
+    if exist('gate_num_b')
+            concent_i(3) = sum(class_i == 3 | class_i ==4)./gated_table.Vol_analyzed_ml(i); %here is where we combine Bacteria and Syn class assignments!
     end
 
     if exist('gate_num_4')
-        concent_i(4) = sum(class_i == 4)./gated_table.Vol_ml(i); 
+            concent_i(4) = sum(class_i == 4)./gated_table.Vol_analyzed_ml(i);
+
+            %Here is where we check if pro gate is cut off 
+            if ~contains(filename, 'pro', 'IgnoreCase', true) %if it's not a pro run specifically but there is a pro gate
+
+                x_ch = strmatch('SSC-H', {fcshdr.par.name});
+                y_ch = strmatch('BL3-H', {fcshdr.par.name});
+
+                figure(2)
+                [N, X] = hist(fcsdat(class_i==4, y_ch)); %check to see if cutoff on BL3
+                hist(fcsdat(class_i==4, y_ch))
+                if N(1) < N(2) & N(1) < N(3) & N(1) < N(4) & N(4) < N(3)
+                    title('good')
+                else
+                %l = input('population cut off? y/n', 's'); 
+                 %if l == 'y'
+                    concent_i(4) = NaN; 
+                    title('cut off')
+                end
+                
+            end
+
     end
 
     if exist('gate_num_5')
-        concent_i(5) = sum(class_i == 5)./gated_table.Vol_ml(i); 
-    end
-    if exist('gate_num_6')
-        concent_i(6) = sum(class_i == 6)./gated_table.Vol_ml(i); 
+            concent_i(5) = sum(class_i == 5)./gated_table.Vol_analyzed_ml(i);
     end
 
-    %account for bacteria time gate
-    g = gated_table.gate_logic{i}; 
-    if exist('gate_num_b') & contains(g{gate_num_b}, 'time_to_include')
-        p = gated_table.polygon_vars{i}; 
-        emptyCells = cellfun(@isempty,p) ;
-        [a,b] = find(emptyCells); 
-        p{a,b} = ''; 
-        [a,b] = find(cellfun(@(x) contains(x, 'Time'), p));
-        pv = gated_table.polygon_vals{i} ; 
-        vals = pv{b};
-        t_val = vals(:,1); %this is the actual value range used for the Time variable
-        
-        
-        matdate1 = [fcshdr.date ' ' fcshdr.starttime];
-        matdate1 = datenum(matdate1, 'dd-mmm-yyyy HH:MM:SS');
-        matdate2 = [fcshdr.date ' ' fcshdr.stoptime];
-        matdate2 = datenum(matdate2, 'dd-mmm-yyyy HH:MM:SS');
-
-        fulltime = 1000*etime(datevec(matdate2), datevec(matdate1)); %this should be 60 seconds * 1000 but just to make sure
-        
-        fraction_of_time = (t_val(2) - t_val(1))./fulltime;
-
-        volume_considered = fraction_of_time.*gated_table.Vol_ml(i); 
-        concent_i(3) = sum(class_i == 3)./volume_considered; 
+    if exist('gate_num_6')        
+            concent_i(6) = sum(class_i == 6)./gated_table.Vol_analyzed_ml(i);
     end
 
     
@@ -688,7 +781,7 @@ for i = 1:height(gated_table)
     %now save concentrations
     euk_conc(i) = concent_i(1);
     syn_conc(i) = concent_i(2);
-    bact_conc(i) = concent_i(3) ;
+    bact_incl_pro_conc(i) = concent_i(3) ;
     pro_conc(i) = concent_i(4);
     lp_euk_conc(i) = concent_i(5); 
     hp_euk_conc(i) = concent_i(6); 
@@ -702,13 +795,13 @@ gated_table.LowP_Euk_conc = lp_euk_conc;
 gated_table.HighP_Euk_conc = hp_euk_conc; 
 
 gated_table.Syn_conc = syn_conc; 
-gated_table.HetBact_conc = bact_conc; 
+gated_table.Bact_incl_pro_conc = bact_incl_pro_conc; 
 gated_table.Pro_conc = pro_conc; 
 
-save([outpath '\Gated_Table.mat'], 'gated_table', 'no_aws_files'); 
+save([outpath '\Gated_Table.mat'], 'gated_table', 'no_aws_files', 'hierarchical_gates'); 
 
 
-clearvars -except basepath restpath fpath outpath classpath awspath  cruisename
+clearvars -except basepath restpath fpath outpath classpath awspath  cruisename hierarchical_gates Step5only
 
 
 end
@@ -746,7 +839,7 @@ end
          
         classfilename = [classpath regexprep(filename, '.fcs', '.mat')];
         class = gated_table.class{counti};
-         notes = "'Euks == 1'; 'Syn == 2'; 'Bacteria == 3'; 'Pro == 4'; 'LowPE_Euks = 5'; 'HighPE_Euks - 6'";
+         notes = "'Euks == 1'; 'Syn == 2'; 'Bacteria & Pro == 3'; 'Pro == 4'; 'LowPE_Euks = 5'; 'HighPE_Euks - 6'";
 
         ssc_ch_num = strmatch(['SSC-' DIM], {fcshdr.par.name});
         gl1_ch_num = strmatch(['GL1-' DIM], {fcshdr.par.name});
@@ -897,26 +990,28 @@ end
 
     gated_table.median_volumes_euk = median_volumes(:,1);
     gated_table.median_volumes_syn = median_volumes(:,2);
-    gated_table.median_volumes_hetbact = median_volumes(:,3);
+    gated_table.median_volumes_bact = median_volumes(:,3);
     gated_table.median_volumes_pro = median_volumes(:,4);
     gated_table.median_volumes_low_pe_euk = median_volumes(:,5);
     gated_table.median_volumes_high_pe_euk = median_volumes(:,6);
 
 
-    save([outpath '\Gated_Table.mat'], 'gated_table', 'no_aws_files');
+    save([outpath '\Gated_Table.mat'], 'gated_table', 'no_aws_files', 'hierarchical_gates');
 
 
-clearvars -except basepath restpath fpath outpath classpath awspath cruisename
+clearvars -except basepath restpath fpath outpath classpath awspath cruisename hierarchical_gates Step5only
 
-if ~Step5only 
-% 
 %% Step 6 - convert gated table to Summary table 
 
+if ~Step5only 
+ 
+%%
 G = load([outpath '\Gated_Table.mat']);
 gated_table = G.gated_table; 
 
+
 %gated_table(contains(gated_table.fcslist, 'lower_thresh'), :) = []; 
-gated_table(gated_table.Cast == 0, :) = []; 
+%gated_table(gated_table.Cast == 0, :) = []; 
 
 
 %first some counting of underway samples
@@ -938,8 +1033,8 @@ CNTable.Cast = C;
 CNTable.Niskin = N; 
 
 %preallocate columns so we can get nans rather than zeros
-hetbaccol = nan(height(CNTable), 1); 
-syncol = hetbaccol; 
+baccol = nan(height(CNTable), 1); 
+syncol = baccol; 
 procol = syncol; 
 eukcol = syncol; 
 lp_eukcol = syncol; 
@@ -963,7 +1058,7 @@ for g = 1:max(G)
 
  
     %pick file to count Syn
-    ind = find(contains(temp.fcslist, 'phyto_PE') & ~ismissing(temp.awsfilename));
+    ind = find(contains(temp.fcslist, 'phyto_PE') & ~cellfun(@isempty, temp.awsfilename));
     use_euk_for_syn = 0; 
     if length(ind) == 1 %if only one fcs file of this type, use that. 
             CNTable.Synfile(g) = temp.fcslist(ind); 
@@ -987,7 +1082,7 @@ for g = 1:max(G)
 
 
     %now pick file to count Euks
-    ind = find(contains(temp.fcslist, 'phyto_CHL') & ~contains(temp.fcslist, 'pro', 'IgnoreCase', true) & ~ismissing(temp.awsfilename));
+    ind = find(contains(temp.fcslist, 'phyto_CHL') & ~contains(temp.fcslist, 'pro', 'IgnoreCase', true) & ~cellfun(@isempty, temp.awsfilename));
     if length(ind) == 1 %if only one fcs file of this type, use that. 
          if use_euk_for_syn
           CNTable.Synfile(g) = temp.fcslist(ind); 
@@ -1026,10 +1121,13 @@ for g = 1:max(G)
     end
 
     %pick file to count Prochlorococcus
-    ind = find(contains(temp.fcslist, 'pro', 'IgnoreCase', true) & ~ismissing(temp.awsfilename));
+    ind = find(contains(temp.fcslist, 'pro', 'IgnoreCase', true) & ~cellfun(@isempty, temp.awsfilename));
     noprofile = 1; 
     if isempty(ind)
-        CNTable.ProFile{g} = '';
+        CNTable.ProFile{g} = CNTable.Eukfile{g}; %if no pro run, check to see if there is a pro gate in euk run
+        if ~isnan(temp.Pro_conc(ind))
+            procol(g) = temp.Pro_conc(ind); 
+        end
         noprofile = 1; 
     elseif length(ind) == 1 %if only one fcs file of this type, use that. 
         CNTable.ProFile(g) =  temp.fcslist(ind);
@@ -1060,17 +1158,14 @@ for g = 1:max(G)
     %pick file to count bacteria, and subtract prochlorococs
     %if a pro file exists and there is no pro gate in bacteria file, then
     %subtract concentration 
-    ind = find(contains(temp.fcslist, 'hbac') & ~ismissing(temp.awsfilename));
+    ind = find(contains(temp.fcslist, 'hbac') & ~cellfun(@isempty, temp.awsfilename));
     if length(ind) == 1 %if only one fcs file of this type, use that. 
         CNTable.BacteriaFile(g) =  temp.fcslist(ind);
 
-       if ~noprofile && isnan(temp.Pro_conc(ind)) %pro run, but no pro gate in bacteria run 
-           hetbaccol(g) = temp.HetBact_conc(ind) - procol(g); 
-       else
-           hetbaccol(g) = temp.HetBact_conc(ind); 
-       end
+        %we want to add prochloro 
+           baccol(g) = temp.Bact_incl_pro_conc(ind); 
 
-       vols(g, 3) = temp.median_volumes_hetbact(ind); 
+       vols(g, 3) = temp.median_volumes_bact(ind); 
 
     elseif ~isempty(ind) %if more than 1, get most recent
         timesince = []; 
@@ -1082,12 +1177,9 @@ for g = 1:max(G)
         [~,truind] = min(timesince);
         CNTable.BacteriaFile(g) =  temp.fcslist(ind(truind));
         
-        if ~noprofile && isnan(temp.Pro_conc(ind(truind))) %pro run, but no pro gate in bacteria run 
-            hetbaccol(g) = temp.HetBact_conc(ind(truind)) - procol(g); 
-        else
-            hetbaccol(g) = temp.HetBact_conc(ind(truind)); 
-        end
-        vols(g, 3) = temp.median_volumes_hetbact(ind(truind)); 
+            baccol(g) = temp.Bact_incl_pro_conc(ind(truind)); 
+
+            vols(g, 3) = temp.median_volumes_bact(ind(truind)); 
 
     end
 
@@ -1098,7 +1190,7 @@ for g = 1:max(G)
 CNTable.euk_per_ml = eukcol; 
 CNTable.syn_per_ml = syncol; 
 CNTable.pro_per_ml = procol; 
-CNTable.hetbac_per_ml = hetbaccol; 
+CNTable.bac_per_ml = baccol; 
 
 CNTable.low_pe_euk_per_ml = lp_eukcol; 
 CNTable.high_pe_euk_per_ml = hp_eukcol; 
@@ -1106,80 +1198,305 @@ CNTable.high_pe_euk_per_ml = hp_eukcol;
 
     CNTable.median_volumes_euk = vols(:,1);
     CNTable.median_volumes_syn = vols(:,2);
-    CNTable.median_volumes_hetbact = vols(:,3);
+    CNTable.median_volumes_bact = vols(:,3);
     CNTable.median_volumes_pro = vols(:,4);
     CNTable.median_volumes_low_pe_euk = vols(:,5);
     CNTable.median_volumes_high_pe_euk = vols(:,6);
 
 
-save([outpath '\SummaryTable.mat'], 'CNTable')
+save([outpath 'SummaryTable.mat'], 'CNTable')
 
-clearvars -except basepath restpath fpath outpath classpath awspath cruisename
+clearvars -except basepath restpath fpath outpath classpath awspath cruisename hierarchical_gates Step5only
+
+
+
+%% Step 7 - Now we want to reformat the Summary table to be like EDI table with carbon counts etc 
+
+%Load data for this cruise
+
+G = load([outpath 'Gated_Table.mat']);
+gated_table = G.gated_table; 
+
+
+C = load([outpath 'SummaryTable.mat']); 
+CNTable = C.CNTable; 
+
+
+EDI_table = table(CNTable.cruise, CNTable.Cast, CNTable.Niskin, CNTable.latitude, CNTable.longitude, CNTable.depth_m, CNTable.salinity, CNTable.potemp090c); 
+EDI_table.Properties.VariableNames = {'cruise'; 'cast'; 'niskin'; 'latitude'; 'longitude'; 'depth_m'; 'salinity'; 'potential_temperature_c';}; 
+
+EDI_table.cruise = string(EDI_table.cruise); %helpful for merging tables when cruisenames are different lengtths 
+
+%reformat dates so they don't suck 
+if iscell(CNTable.date_sampled)
+dates1 = cell2mat(CNTable.date_sampled); 
+EDI_table.date_sampled = datetime(dates1(:, 1:19), 'Format', 'yyyy-MM-dd HH:mm:ss'); 
+
+else
+    EDI_table.date_sampled = CNTable.date_sampled; 
+end
+
+
+dates2 = cell2mat(CNTable.date_processed); 
+EDI_table.date_processed = datetime(dates2, 'Format', 'yyyy-MM-dd'); 
+
+
+% Go back to class files using Gated_table
+
+
+for i = 1:height(EDI_table); 
+    %first check syn file
+    if ~isempty(CNTable.Synfile{i})
+    filename = CNTable.Synfile{i}; 
+    cfilename = regexprep(filename, '.fcs', '.mat'); 
+
+    if ~exist([[classpath filesep cfilename]])
+        EDI_table.syn_cells_per_ml(i) = NaN;
+        EDI_table.syn_biovolume_concentration(i) = NaN;
+        EDI_table.syn_carbon_concentration(i) = NaN; %divide by 1000 to get micrograms per Liter
+        EDI_table.syn_volume_analyzed_ml(i) = NaN; 
+        EDI_table.syn_filename{i} = 'NaN';
+        continue
+    end
+
+    C = load([classpath filesep cfilename]); 
+
+    volume = real(C.volume); 
+    carbon = biovol2carbon(volume, 0); % carbon, picograms per cell
+    carbon = real(carbon); %having issues with formatting, keeps having valus with + 0i. 
+
+
+    %match to gated table row 
+    gind = find(strcmp(gated_table.fcslist, filename)); 
+
+
+    EDI_table.syn_cells_per_ml(i) = sum(C.class==2)./gated_table.Vol_analyzed_ml(gind); 
+    EDI_table.syn_biovolume_concentration(i) = nansum(volume(C.class==2))./gated_table.Vol_analyzed_ml(gind); 
+    EDI_table.syn_carbon_concentration(i) = nansum(carbon(C.class==2))./gated_table.Vol_analyzed_ml(gind)./1000; %divide by 1000 to get micrograms per Liter
+    EDI_table.syn_volume_analyzed_ml(i) = gated_table.Vol_analyzed_ml(gind); 
+    EDI_table.syn_filename(i) = CNTable.Synfile(i); 
+
+    else
+
+        EDI_table.syn_cells_per_ml(i) = NaN;
+        EDI_table.syn_biovolume_concentration(i) = NaN;
+        EDI_table.syn_carbon_concentration(i) = NaN; %divide by 1000 to get micrograms per Liter
+        EDI_table.syn_volume_analyzed_ml(i) = NaN; 
+        EDI_table.syn_filename{i} = 'NaN'; 
+    end
+
+    % done with Syn, move on to Euks
+    if ~isempty(CNTable.Eukfile{i})
+
+    filename = CNTable.Eukfile{i}; 
+    cfilename = regexprep(filename, '.fcs', '.mat'); 
+
+    if ~exist([[classpath filesep cfilename]])
+        EDI_table.redeuk_leq_2um_cells_per_ml(i) = NaN;
+        EDI_table.redeuk_leq_2um_biovolume_concentration(i) =  NaN;
+        EDI_table.redeuk_leq_2um_carbon_concentration(i) =  NaN;
+    % <= 3
+        EDI_table.redeuk_leq_3um_cells_per_ml(i) =  NaN;
+        EDI_table.redeuk_leq_3um_biovolume_concentration(i) =  NaN;
+        EDI_table.redeuk_leq_3um_carbon_concentration(i) =  NaN;
+    % <= 5
+        EDI_table.redeuk_leq_5um_cells_per_ml(i) = NaN;
+        EDI_table.redeuk_leq_5um_biovolume_concentration(i) =  NaN;
+        EDI_table.redeuk_leq_5um_carbon_concentration(i) =  NaN;
+        % <= 10
+        EDI_table.redeuk_leq_10um_cells_per_ml(i) =  NaN;
+        EDI_table.redeuk_leq_10um_biovolume_concentration(i) =  NaN;; 
+        EDI_table.redeuk_leq_10um_carbon_concentration(i) =  NaN;
+        % <= 20
+        EDI_table.redeuk_leq_20um_cells_per_ml(i) =  NaN;
+        EDI_table.redeuk_leq_20um_biovolume_concentration(i) =  NaN;
+        EDI_table.redeuk_leq_20um_carbon_concentration(i) =  NaN;
+    
+        EDI_table.redeuk_volume_analyzed_ml(i) =  NaN;
+        EDI_table.redeuk_filename{i} = 'NaN';
+        continue
+    end
+
+    C = load([classpath filesep cfilename]); 
+
+    volume = real(C.volume); 
+    carbon = biovol2carbon(volume, 0); % carbon, picograms per cell
+    carbon = real(carbon); %having issues with formatting, keeps having valus with + 0i. 
+
+    gind = find(strcmp(gated_table.fcslist, filename)); 
+
+
+    EukSizes = [0 2 3 5 10 20];
+    %size fractions by diameter
+    diam = (volume*3/4/pi).^(1/3)*2; %equivalent spherical diam, micrometers
+    
+    %first < 2 
+    bin_particle_ind = find(diam'<=2 & C.class==1)';
+
+    EDI_table.redeuk_leq_2um_cells_per_ml(i) = length(bin_particle_ind)./gated_table.Vol_analyzed_ml(gind); %counts over volume
+    EDI_table.redeuk_leq_2um_biovolume_concentration(i) = nansum(volume(bin_particle_ind))./gated_table.Vol_analyzed_ml(gind); 
+    EDI_table.redeuk_leq_2um_carbon_concentration(i) = nansum(carbon(bin_particle_ind))./gated_table.Vol_analyzed_ml(gind)./1000; %divide by 1000 to get micrograms per Liter
+
+    % <= 3
+    bin_particle_ind = find(diam'<=3 & C.class==1)';
+    EDI_table.redeuk_leq_3um_cells_per_ml(i) = length(bin_particle_ind)./gated_table.Vol_analyzed_ml(gind); %counts over volume
+    EDI_table.redeuk_leq_3um_biovolume_concentration(i) = nansum(volume(bin_particle_ind))./gated_table.Vol_analyzed_ml(gind); 
+    EDI_table.redeuk_leq_3um_carbon_concentration(i) = nansum(carbon(bin_particle_ind))./gated_table.Vol_analyzed_ml(gind)./1000; %divide by 1000 to get micrograms per Liter
+
+    % <= 5
+    bin_particle_ind = find(diam'<=5 & C.class==1)';
+    EDI_table.redeuk_leq_5um_cells_per_ml(i) = length(bin_particle_ind)./gated_table.Vol_analyzed_ml(gind); %counts over volume
+    EDI_table.redeuk_leq_5um_biovolume_concentration(i) = nansum(volume(bin_particle_ind))./gated_table.Vol_analyzed_ml(gind); 
+    EDI_table.redeuk_leq_5um_carbon_concentration(i) = nansum(carbon(bin_particle_ind))./gated_table.Vol_analyzed_ml(gind)./1000; %divide by 1000 to get micrograms per Liter
+
+    % <= 10
+    bin_particle_ind = find(diam'<=10 & C.class==1)';
+    EDI_table.redeuk_leq_10um_cells_per_ml(i) = length(bin_particle_ind)./gated_table.Vol_analyzed_ml(gind); %counts over volume
+    EDI_table.redeuk_leq_10um_biovolume_concentration(i) = nansum(volume(bin_particle_ind))./gated_table.Vol_analyzed_ml(gind); 
+    EDI_table.redeuk_leq_10um_carbon_concentration(i) = nansum(carbon(bin_particle_ind))./gated_table.Vol_analyzed_ml(gind)./1000; %divide by 1000 to get micrograms per Liter
+
+    % <= 20
+    bin_particle_ind = find(diam'<=20 & C.class==1)';
+    EDI_table.redeuk_leq_20um_cells_per_ml(i) = length(bin_particle_ind)./gated_table.Vol_analyzed_ml(gind); %counts over volume
+    EDI_table.redeuk_leq_20um_biovolume_concentration(i) = nansum(volume(bin_particle_ind))./gated_table.Vol_analyzed_ml(gind); 
+    EDI_table.redeuk_leq_20um_carbon_concentration(i) = nansum(carbon(bin_particle_ind))./gated_table.Vol_analyzed_ml(gind)./1000; %divide by 1000 to get micrograms per Liter
+
+
+    EDI_table.redeuk_volume_analyzed_ml(i) = gated_table.Vol_analyzed_ml(gind); 
+    EDI_table.redeuk_filename(i) = CNTable.Eukfile(i); 
+
+    else
+        EDI_table.redeuk_leq_2um_cells_per_ml(i) = NaN;
+        EDI_table.redeuk_leq_2um_biovolume_concentration(i) =  NaN;
+        EDI_table.redeuk_leq_2um_carbon_concentration(i) =  NaN;
+    % <= 3
+        EDI_table.redeuk_leq_3um_cells_per_ml(i) =  NaN;
+        EDI_table.redeuk_leq_3um_biovolume_concentration(i) =  NaN;
+        EDI_table.redeuk_leq_3um_carbon_concentration(i) =  NaN;
+    % <= 5
+        EDI_table.redeuk_leq_5um_cells_per_ml(i) = NaN;
+        EDI_table.redeuk_leq_5um_biovolume_concentration(i) =  NaN;
+        EDI_table.redeuk_leq_5um_carbon_concentration(i) =  NaN;
+        % <= 10
+        EDI_table.redeuk_leq_10um_cells_per_ml(i) =  NaN;
+        EDI_table.redeuk_leq_10um_biovolume_concentration(i) =  NaN;; 
+        EDI_table.redeuk_leq_10um_carbon_concentration(i) =  NaN;
+        % <= 20
+        EDI_table.redeuk_leq_20um_cells_per_ml(i) =  NaN;
+        EDI_table.redeuk_leq_20um_biovolume_concentration(i) =  NaN;
+        EDI_table.redeuk_leq_20um_carbon_concentration(i) =  NaN;
+    
+        EDI_table.redeuk_volume_analyzed_ml(i) =  NaN;
+        EDI_table.redeuk_filename{i} = 'NaN';
+
+
+    end
+
+    % finally heterotrophic bacteria
+    if ~isempty(CNTable.BacteriaFile{i})
+
+    filename = CNTable.BacteriaFile{i}; 
+    cfilename = regexprep(filename, '.fcs', '.mat'); 
+
+    if ~exist([[classpath filesep cfilename]])
+        EDI_table.hetprok_cells_per_ml(i) = NaN;
+        EDI_table.hetprok_volume_analyzed_ml(i) = NaN;
+        EDI_table.hetprok_filename{i} = 'NaN';
+        continue
+    end
+
+    C = load([classpath filesep cfilename]); 
+
+    volume = real(C.volume); 
+    carbon = biovol2carbon(volume, 0); % carbon, picograms per cell
+    carbon = real(carbon); %having issues with formatting, keeps having valus with + 0i. 
+
+    gind = find(strcmp(gated_table.fcslist, filename)); 
+
+   
+    EDI_table.hetprok_cells_per_ml(i) = CNTable.bac_per_ml(i); % Do NOT go back to class file, since we had to account for time gate 
+    %EDI_table.hetprok_biovolume_concentration(i) = nansum(volume(C.class==3))./gated_table.Vol_analyzed_ml(gind); 
+    %EDI_table.hetprok_carbon_concentration(i) = nansum(carbon(C.class==3))./gated_table.Vol_analyzed_ml(gind)./1000; %divide by 1000 to get micrograms per Liter
+    EDI_table.hetprok_volume_analyzed_ml(i) = gated_table.Vol_analyzed_ml(gind); 
+    EDI_table.hetprok_filename(i) = CNTable.BacteriaFile(i); 
+
+    else
+        EDI_table.hetprok_cells_per_ml(i) = NaN;
+        EDI_table.hetprok_volume_analyzed_ml(i) = NaN;
+        EDI_table.hetprok_filename{i} = 'NaN';
+    end
 
 end
+save([outpath 'EDI_table.mat'], 'EDI_table')
+disp([outpath 'EDI_table.mat'])
+
+
+
+
+
+end
+
 
 %% function needed for Step 2
 
 function make_figure_aws(fcsdat, fcshdr, gate_assignments, polygon_vars, polygon_vals, gate_names, figpath);
-numpanels = size(polygon_vars,2);
 
+timegateind = find(contains(gate_names, 'time_to_include'));  %remove this gate
+gate_names(timegateind) = [];
+gate_assignments(timegateind, :) = []; 
+
+
+%and remove time polygon
+timepolyind = find(contains(polygon_vars(1,:), 'Time'));
+polygon_vars(:, timepolyind) = []; 
+polygon_vals(:, timepolyind) = []; 
+    
+vars_plotted = [];
 clf
-for i = 1:numpanels %make an axis for each polygon
-    subplot(1,numpanels,i)
-
+for i = 1:length(polygon_vars) %make an axis for each polygon
     x_ch = strmatch(polygon_vars{1, i}, {fcshdr.par.name});
 
     if isempty(polygon_vars{2,i})
         y_ch = 12; %just need a var to plot for time gates
-
-        %plot each of the gates in a different color
-        scatter(fcsdat(:, x_ch), fcsdat(:, y_ch), '.')
-        hold on
-        for g = height(gate_assignments):-1:1
-            hold on
-            scatter(fcsdat(logical(gate_assignments(g,:)), x_ch), fcsdat(logical(gate_assignments(g,:)), y_ch), '.')
-        end
-        xlabel(polygon_vars{1, i})
-        ylabel(polygon_vars{2,i})
-        set(gca, 'YScale', 'log')
-
     else
         y_ch = strmatch(polygon_vars{2,i}, {fcshdr.par.name});
-
-
-        %plot each of the gates in a different color
-        loglog(fcsdat(:, x_ch), fcsdat(:, y_ch), '.')
-        hold on
-        gate_order = height(gate_assignments):-1:1; 
-        %have to rearrange because sometimes plots are not very viewable
-        if sum(strcmp(gate_names, 'Phyto'))
-        gate_order = [gate_order(gate_order ~= find(strcmp(gate_names, 'Syn')))  gate_order(gate_order == find(strcmp(gate_names, 'Syn')))];
-        gate_order = [gate_order(gate_order == find(strcmp(gate_names, 'Euk')))  gate_order(gate_order ~= find(strcmp(gate_names, 'Euk')))];
-        gate_order = [gate_order(gate_order == find(strcmp(gate_names, 'Phyto')))  gate_order(gate_order ~= find(strcmp(gate_names, 'Phyto')))];
-        end
-
-        legend_gate_order = [];      %have to check that no gates were empty so that legend lines up. 
-
-        for g = gate_order
-            hold on
-            loglog(fcsdat(logical(gate_assignments(g,:)), x_ch), fcsdat(logical(gate_assignments(g,:)), y_ch), '.')
-            if sum(logical(gate_assignments(g,:))) ~= 0
-                legend_gate_order = [legend_gate_order g];
-            end
-
-        end
-        xlabel(polygon_vars{1, i})
-        ylabel(polygon_vars{2,i})
     end
 
-    if i == numpanels
-        legendlabels = {'' gate_names{legend_gate_order}};
-        legend(legendlabels, 'interpreter', 'none')
+    if isempty(vars_plotted)
+        vars_plotted = [vars_plotted [x_ch y_ch]'];
+    elseif sum(ismember(vars_plotted, [x_ch y_ch]')) ~=2
+         vars_plotted = [vars_plotted [x_ch y_ch]'];
     end
 
 end
+
+numpanels = size(vars_plotted, 2); 
+
+for i = 1:height(gate_assignments); %plot variabel combos for each gate 
+        
+  for j = 1:numpanels
+        x_ch = vars_plotted(1, j); 
+        y_ch = vars_plotted(2, j); 
+
+        subplot(height(gate_assignments), numpanels, ((i-1).*numpanels+j))
+        scatter(fcsdat(:, x_ch), fcsdat(:, y_ch), '.')
+        hold on
+        scatter(fcsdat(logical(gate_assignments(i,:)), x_ch), fcsdat(logical(gate_assignments(i,:)), y_ch), '.')
+
+        xlabel(fcshdr.par(x_ch).name)
+        ylabel(fcshdr.par(y_ch).name)
+
+        set(gca, 'YScale', 'log')
+        set(gca, 'XScale', 'log')
+
+  end
+
+  title(gate_names{i}, 'interpreter', 'none')
+
+end
+
 %add a title for the figure
-subplot(1,numpanels,1)
+subplot(height(gate_assignments), numpanels, 1)
 title(fcshdr.filename, 'interpreter', 'none')
 figname = regexprep(fcshdr.filename, '.fcs', '.jpg');
 print(strcat(figpath, '\', figname), '-djpeg')

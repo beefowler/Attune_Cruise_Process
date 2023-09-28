@@ -1,3 +1,6 @@
+%modifying (9/13/23) so that all time gates are ignored and added post-hoc.
+% this will allow for uniform volume_analyzed values regardless of whether
+% a time gate was used in attune workspace or not. 
 
 % modifying so that output includes all gates, and true/false for every
 % paticle and every gate. 
@@ -149,6 +152,19 @@ for g = 1:num_gates
 
 end
 
+%% go look for parents
+parent_logic = cell(1, num_gates); 
+for g = 1:num_gates
+    newstr = C_gates{g+1}; 
+    newstr = split(newstr, ' ');
+
+    temp = newstr{find(cellfun(@(x) contains(x,'parent='), newstr, 'UniformOutput', 1))}; 
+    t = strfind(temp, '&quot;');
+    if ~isempty(t)
+    parent_logic{g} = temp(t(1)+6:t(2)-1); 
+    end
+end
+
 
 %% Now we want to apply these polygons and this logic to an fcs file
 
@@ -165,7 +181,7 @@ for g = 1:length(gates_to_do)
 
     poly_of_int = erase(parse_logic, 'not');
 
-    logic_summary = nan(length(poly_of_int), length(fcsdat)); %check each row 
+    logic_summary = nan((length(poly_of_int)+1), length(fcsdat)); %check each row 
     for i = 1:length(parse_logic)
         poly_name = poly_of_int(i); 
         poly_num = find(cellfun(@(x) strcmp(x, poly_name) , polygon_names, 'UniformOutput', 1)); 
@@ -188,14 +204,18 @@ for g = 1:length(gates_to_do)
             end
 
         else % one dimensional gate
-            lims = polygon_vals{poly_num};
-            lims = lims(:,1);
-            in_poly = fcsdat(:,npar_x)< lims(2) & fcsdat(:,npar_x)>lims(1); 
+            if npar_x == 1 %if this is a time gate
+                logic_summary(i, :) = 1; %put all particles "in this polygon". 
+            else %if some other gate, but this probably never happens
+                lims = polygon_vals{poly_num};
+                lims = lims(:,1);
+                in_poly = fcsdat(:,npar_x)< lims(2) & fcsdat(:,npar_x)>lims(1);
 
-            if contains(parse_logic{i}, 'not')
-                logic_summary(i, :) = ~in_poly; 
-            else
-                logic_summary(i, :) = in_poly; 
+                if contains(parse_logic{i}, 'not')
+                    logic_summary(i, :) = ~in_poly;
+                else
+                    logic_summary(i, :) = in_poly;
+                end
             end
 
         end
@@ -203,10 +223,23 @@ for g = 1:length(gates_to_do)
 
     end 
 
-    in_gate = sum(logic_summary, 1)==length(poly_of_int); %make sure it meets all logic requirements to be in gate
+    %% now add 80% time polygon to all gates
+
+        matdate1 = [fcshdr.date ' ' fcshdr.starttime];
+        matdate1 = datenum(matdate1, 'dd-mmm-yyyy HH:MM:SS');
+        matdate2 = [fcshdr.date ' ' fcshdr.stoptime];
+        matdate2 = datenum(matdate2, 'dd-mmm-yyyy HH:MM:SS');
+        fulltime = 1000*etime(datevec(matdate2), datevec(matdate1));
+
+    in_poly = fcsdat(:,1)<= fulltime & fcsdat(:,1)>fulltime*.2; % first 20 percent of time is cut out
+
+    logic_summary(end, :) = in_poly; 
+
+    in_gate = sum(logic_summary, 1)==(length(poly_of_int)+1); %make sure it meets all logic requirements to be in gate
     gate_assignment(g, in_gate) = 1; 
 
 end
+
 
 
 
