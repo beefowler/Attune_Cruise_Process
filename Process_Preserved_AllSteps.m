@@ -11,13 +11,13 @@
 clear all
 
 % % Manually choose cruise to process
-basepath = '\\sosiknas1\Lab_data\Attune\cruise_data\20180131_EN608\preserved';
-cruisename = 'EN608';
+basepath = '\\sosiknas1\Lab_data\Attune\cruise_data\20210512_SG2105\preserved';
+cruisename = 'SG2105';
 
 hierarchical_gates = 'True';  %set to 'True' or 'False'; 
 
 %%
-restpath = 'https://nes-lter-data.whoi.edu/api/ctd/en608/';
+restpath = '\\sosiknas1\Lab_data\Attune\cruise_data\20210512_SG2105\EXPORTS2021_SDG2105_BottleFile_R0_20210720T124833.csv';
 %'\\sosiknas1\Lab_data\OTZ\20200311_AR43\ctd\ar43_ctd_bottles.csv';
 % '\\sosiknas1\Lab_data\Attune\cruise_data\20210512_SG2105\EXPORTS2021_SDG2105_BottleFile_R0_20210720T124833.csv';
 %
@@ -242,7 +242,7 @@ for i = 1:height(T)
              %               awsfile = strcat(awspath, '', runtypes(k), '\', awslist(ind));
             %end
             if strcmp(hierarchical_gates, 'True')
-                 [gate_assignments, polygon_names, polygon_vars, polygon_vals, gate_names, gate_logic_legible] = ApplyAWSgates_hierarchical(awsfile, fcsdat, fcshdr);
+                 [gate_assignments, polygon_names, polygon_vars, polygon_vals, gate_names, gate_logic_legible, parent_logic] = ApplyAWSgates_hierarchical(awsfile, fcsdat, fcshdr);
             elseif strcmp(hierarchical_gates, 'False')
                 [gate_assignments, polygon_names, polygon_vars, polygon_vals, gate_names, gate_logic_legible] = ApplyAWSgates2(awsfile, fcsdat, fcshdr); 
             end
@@ -319,15 +319,34 @@ else
     if endsWith(restpath, 'mat')
  %use mat file for SPIROPA Cruises not the same format >:(
 load(restpath)
-%temp = importdata('\\sosiknas1\Lab_data\SPIROPA\20190705_TN368\fromOlga\tn368_niskin_pressure_depth.txt');    
-%bottle_depth = temp.data; %bottle_depth(:,4) = []; %clear temp
+temp = importdata('\\sosiknas1\Lab_data\SPIROPA\20190705_TN368\fromOlga\tn368_niskin_pressure_depth.txt');    
+bottle_depth = temp.data; %bottle_depth(:,4) = []; 
+clear temp
+temp = table;
+temp.Cast = bottle_depth(:,1); 
+temp.Niskin = bottle_depth(:,2); 
+temp.depsm = bottle_depth(:,5);
+
+    for i = 1:height(temp)
+        temptemp = BTL(find(BTL.Cast == temp.Cast(i)), :);
+        [~,ind] = min(abs(temptemp.TargetDepth_m - bottle_depth(i,3))); 
+        temp.sal00(i) = temptemp.Sal00(ind); 
+        temp.potemp090c(i) = temptemp.Potemp090C(ind); 
+        temp.Latitude_decimalDeg(i) = temptemp.Latitude_decimalDeg(ind); 
+        temp.Longitude_decimalDeg(i) = temptemp.Longitude_decimalDeg(ind);
+        temp.datetime(i) = temptemp.datetime(ind); 
+
+    end
+
+    BTL = temp; 
+
     elseif endsWith(restpath, 'csv')
 
         BTL = readtable(restpath); 
 
         %have to rename columns to match 
-       if strcmp('cast',BTL.Properties.VariableNames)
-        BTL.Cruise = []; %match column numbers for other cruises. 
+       if sum(strcmp('cast',BTL.Properties.VariableNames))
+        %BTL.Cruise = []; %match column numbers for other cruises. 
 
         BTL.Cast = BTL.cast; 
         BTL.Niskin = BTL.niskin;
@@ -1400,6 +1419,7 @@ for i = 1:height(EDI_table);
 
     if ~exist([[classpath filesep cfilename]])
         EDI_table.hetprok_cells_per_ml(i) = NaN;
+        EDI_table.hetprok_carbon_concentration(i)
         EDI_table.hetprok_volume_analyzed_ml(i) = NaN;
         EDI_table.hetprok_filename{i} = 'NaN';
         continue
@@ -1417,11 +1437,17 @@ for i = 1:height(EDI_table);
     EDI_table.hetprok_cells_per_ml(i) = CNTable.bac_per_ml(i); % Do NOT go back to class file, since we had to account for time gate 
     %EDI_table.hetprok_biovolume_concentration(i) = nansum(volume(C.class==3))./gated_table.Vol_analyzed_ml(gind); 
     %EDI_table.hetprok_carbon_concentration(i) = nansum(carbon(C.class==3))./gated_table.Vol_analyzed_ml(gind)./1000; %divide by 1000 to get micrograms per Liter
+   
+    
+    %doing carbon concentration per cell conversion based on Lee & Furhman 1987 
+     EDI_table.hetprok_carbon_concentration(i) = EDI_table.hetprok_cells_per_ml(i).* 20  * 1e-6; %to convert to micrograms per liter
+     
     EDI_table.hetprok_volume_analyzed_ml(i) = gated_table.Vol_analyzed_ml(gind); 
     EDI_table.hetprok_filename(i) = CNTable.BacteriaFile(i); 
 
     else
-        EDI_table.hetprok_cells_per_ml(i) = NaN;
+        EDI_table.hetprok_cells_per_ml(i) = NaN;        
+        EDI_table.hetprok_carbon_concentration(i)
         EDI_table.hetprok_volume_analyzed_ml(i) = NaN;
         EDI_table.hetprok_filename{i} = 'NaN';
     end
