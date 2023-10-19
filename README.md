@@ -1,9 +1,8 @@
 # Attune_Cruise_Process
 Scripts for processing Sosik Lab attune flow cytometry data from discrete niskin samples
 
-Temporarilly, scripts are replicated in two repos: 
-https://github.com/beefowler/Attune_Cruise_Process
-   and
+This repo is just a backup. Please use the project copy to make adjustments or use the package. 
+
 https://github.com/hsosik/NES-LTER/tree/master/Attune/Discrete_sample_processing
 
 
