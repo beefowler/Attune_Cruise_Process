@@ -3,6 +3,14 @@ load('\\sosiknas1\Lab_data\Attune\cruise_data\Attune_Discrete_Table.mat')
 
 ADT = Attune_Discrete_Table; 
 
+j = find(isnan(ADT.syn_cells_per_ml) & isnan(ADT.redeuk_leq_20um_cells_per_ml) & isnan(ADT.hetprok_cells_per_ml)); 
+ADT(j, :) = []; 
+
+j = find(ADT.cruise == 'TN368' & isnan(ADT.depth_m))
+ADT(j, :) = []; 
+
+
+
 %load autoQC results
 autoQC = readtable('\\sosiknas1\Lab_data\Attune\cruise_data\Compare_attune_discrete_files_to_samplelog.csv'); 
 
@@ -103,14 +111,14 @@ end
 %now replace bad ADT rows with shortstack rows 
 ADT(isnan(ADT.depth_m), :) = shortstack; 
 
-
+j = find(ADT.salinity == 0); 
+ADT(j,:) = []; 
 
 writetable(ADT, '\\sosiknas1\Lab_data\Attune\cruise_data\Attune_Discrete_Table_postmanualQC.csv');
 
 
 
-
-
+writetable(ADT, edipath)
 
 
 

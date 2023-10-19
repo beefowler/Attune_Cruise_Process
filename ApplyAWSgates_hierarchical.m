@@ -65,6 +65,7 @@ for p = 1:num_polygons
 
     temp = regexprep(temp, 'bacteria plus', 'bacteria_plus'); 
     temp = regexprep(temp, 'volume to include', 'volume_to_include'); 
+    temp = regexprep(temp, 'Large bacteria', 'large_bacteria'); 
 
     newstr = split(temp, ' ');
 
@@ -133,6 +134,8 @@ for g = 1:num_gates
     newstr = C_gates{g+1}; 
     newstr = regexprep(newstr, 'bacteria plus', 'bacteria_plus'); 
     newstr = regexprep(newstr, 'volume to include', 'volume_to_include'); 
+    newstr = regexprep(newstr, 'Large bacteria', 'large_bacteria'); 
+
     newstr = split(newstr, ' ');
 
     temp = newstr{find(cellfun(@(x) contains(x,'name='), newstr, 'UniformOutput', 1))}; 

@@ -8,16 +8,18 @@
     % Convert_Gated_Table_to_CNTable
 
 %% INPUTS 
-clear all
+clear all 
+fclose('all')
 
 % % Manually choose cruise to process
-basepath = '\\sosiknas1\Lab_data\Attune\cruise_data\20210512_SG2105\preserved';
-cruisename = 'SG2105';
+basepath = '\\sosiknas1\Lab_data\Attune\cruise_data\20190705_TN368\preserved\';
+cruisename = 'TN368';
 
 hierarchical_gates = 'True';  %set to 'True' or 'False'; 
 
 %%
-restpath = '\\sosiknas1\Lab_data\Attune\cruise_data\20210512_SG2105\EXPORTS2021_SDG2105_BottleFile_R0_20210720T124833.csv';
+restpath = '\\sosiknas1\Lab_data\SPIROPA\20190705_TN368\fromOlga\tn368_bottle_data_Jul_2022_table.mat'; 
+%'\\sosiknas1\Lab_data\Attune\cruise_data\20190725_HB1907\preserved\bottle_environmental_data_partial.csv';
 %'\\sosiknas1\Lab_data\OTZ\20200311_AR43\ctd\ar43_ctd_bottles.csv';
 % '\\sosiknas1\Lab_data\Attune\cruise_data\20210512_SG2105\EXPORTS2021_SDG2105_BottleFile_R0_20210720T124833.csv';
 %
@@ -29,7 +31,7 @@ elogpath = '';%'\\sosiknas1\Lab_data\LTER\20201013_EN657\eLog\R2R_ELOG_EN657_FIN
 uw_fullname = ''; %'https://nes-lter-data.whoi.edu/api/underway/en657.csv';
 
 
-Step1 = 1; 
+Step1 = 0; 
 Step5only = 0; 
 
 %% Set up 
@@ -353,6 +355,8 @@ temp.depsm = bottle_depth(:,5);
         BTL.Latitude_decimalDeg = BTL.latitude; 
         BTL.Longitude_decimalDeg = BTL.longitude; 
 
+        BTL.depsm = BTL.depth; 
+
         for i = 1:height(BTL)
             tempdate = BTL.date{i};
             BTL.datetime(i) = datetime(tempdate(1:19), 'InputFormat', 'yyyy-MM-dd HH:mm:SS');
@@ -393,8 +397,14 @@ for f = 1:height(gated_table)
 
     %now add depths for each niskin number
     if sum(temp.Cast == gated_table.Cast(f) & temp.Niskin == gated_table.Niskin(f)) > 0
-        gated_table.salinity(f) =  temp.sal00(temp.Cast == gated_table.Cast(f) & temp.Niskin == gated_table.Niskin(f));
-        gated_table.potemp090c(f) =  temp.potemp090c(temp.Cast == gated_table.Cast(f) & temp.Niskin == gated_table.Niskin(f));
+        gated_table.salinity(f) = temp.sal00(temp.Cast == gated_table.Cast(f) & temp.Niskin == gated_table.Niskin(f));
+        gated_table.potemp090c(f) = temp.potemp090c(temp.Cast == gated_table.Cast(f) & temp.Niskin == gated_table.Niskin(f));
+        %temp2 = temp.depsm(temp.Cast == gated_table.Cast(f) & temp.Niskin
+        %== gated_table.Niskin(f)); 
+        %gated_table.depth_m(f) = temp2(1) 
+        %these two lines are ueful only if you are
+        %working with a metadata table that is actually a nutrient table
+        %and has more than one sample per cast and niskin. 
         gated_table.depth_m(f) = temp.depsm(temp.Cast == gated_table.Cast(f) & temp.Niskin == gated_table.Niskin(f));
     end
 
@@ -411,7 +421,8 @@ end
 
 end
 
-save([outpath '\Gated_Table.mat'], 'gated_table', '-append'); 
+save([outpath '\Gated_Table.mat'], 'gated_table', 'no_aws_files', 'hierarchical_gates'); 
+
 
 % now underways
 
@@ -591,8 +602,10 @@ end
 
 end
 
+no_aws_files = G.no_aws_files; 
+
 %overwrite saved gated table with metadata
-save([outpath '\Gated_Table.mat'], 'gated_table', '-append');
+save([outpath '\Gated_Table.mat'], 'gated_table', 'no_aws_files', 'hierarchical_gates'); 
 
 clearvars -except basepath restpath fpath outpath classpath awspath cruisename elogpath uw_fullname  hierarchical_gates Step5only
 
@@ -673,7 +686,10 @@ for i = 1:height(gated_table)
             gate_num_2 = find(strcmp(gate_names, 'syn')); 
             class_i(class_i == 0' & gate_assign_i(gate_num_2, :)) = 2; 
     end
-
+   if sum(strcmp(gate_names, 'SYN'))
+            gate_num_2 = find(strcmp(gate_names, 'SYN')); 
+            class_i(class_i == 0' & gate_assign_i(gate_num_2, :)) = 2; 
+    end
 
 
     %next bacteria, may include prochlorococcus, but those will be
@@ -773,6 +789,8 @@ for i = 1:height(gated_table)
                 [N, X] = hist(fcsdat(class_i==4, y_ch)); %check to see if cutoff on BL3
                 hist(fcsdat(class_i==4, y_ch))
                 if N(1) < N(2) & N(1) < N(3) & N(1) < N(4) & N(4) < N(3)
+                    title('good')
+                elseif N(1) < N(2) & N(2) < N(3) & N(3) < N(4) 
                     title('good')
                 else
                 %l = input('population cut off? y/n', 's'); 

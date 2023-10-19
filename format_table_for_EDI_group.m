@@ -11,7 +11,8 @@ dirlist = {'\\sosiknas1\Lab_data\Attune\cruise_data\20180131_EN608\preserved';
     '\\sosiknas1\Lab_data\Attune\cruise_data\20210203_EN661\preserved';
     '\\sosiknas1\Lab_data\Attune\cruise_data\20210716_EN668\preserved';
     '\\sosiknas1\Lab_data\Attune\cruise_data\20211108_AR61B\preserved';
-    '\\sosiknas1\Lab_data\Attune\cruise_data\20220216_AT46\preserved'}
+    '\\sosiknas1\Lab_data\Attune\cruise_data\20220216_AT46\preserved'; 
+    '\\sosiknas1\Lab_data\Attune\cruise_data\20190705_TN368\preserved'}
 
 Attune_Discrete_Table = table(); 
 edipath = ['\\sosiknas1\Lab_data\Attune\EDI_data_packages\Attune_transect_FCMdiscrete\attune-transect-discrete-samples.csv'];
@@ -40,8 +41,12 @@ EDI_table.Properties.VariableNames = {'cruise'; 'cast'; 'niskin'; 'latitude'; 'l
 EDI_table.cruise = string(EDI_table.cruise); %helpful for merging tables when cruisenames are different lengtths 
 
 %reformat dates so they don't suck 
+if iscell(CNTable.date_sampled)
 dates1 = cell2mat(CNTable.date_sampled); 
 EDI_table.date_sampled = datetime(dates1(:, 1:19), 'Format', 'yyyy-MM-dd HH:mm:ss'); 
+else
+EDI_table.date_sampled = datetime(CNTable.date_sampled, 'Format', 'yyyy-MM-dd HH:mm:ss'); 
+end
 
 dates2 = cell2mat(CNTable.date_processed); 
 EDI_table.date_processed = datetime(dates2, 'Format', 'yyyy-MM-dd'); 
@@ -209,7 +214,7 @@ for i = 1:height(EDI_table);
 
     if ~exist([[classpath filesep cfilename]])
         EDI_table.hetprok_cells_per_ml(i) = NaN;
-        EDI_table.hetprok_carbon_concentration(i)
+        EDI_table.hetprok_carbon_concentration(i) = NaN;
         EDI_table.hetprok_volume_analyzed_ml(i) = NaN;
         EDI_table.hetprok_filename{i} = 'NaN';
         continue
@@ -238,7 +243,7 @@ for i = 1:height(EDI_table);
 
     else
         EDI_table.hetprok_cells_per_ml(i) = NaN;
-        EDI_table.hetprok_carbon_concentration(i)
+        EDI_table.hetprok_carbon_concentration(i) = NaN; 
         EDI_table.hetprok_volume_analyzed_ml(i) = NaN;
         EDI_table.hetprok_filename{i} = 'NaN';
     end

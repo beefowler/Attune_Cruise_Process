@@ -8,6 +8,17 @@ samplelog.Properties.VariableNames{7} = 'Cast';
 samplelog.Properties.VariableNames{8} = 'Niskin';
 samplelog.Properties.VariableNames{36} = 'FCMcol'; 
 
+samplelog = samplelog(:, [1 7 8 36]); 
+%%
+
+%add spiropa sample log
+spiropa_samplelog = readtable('\\sosiknas1\Lab_data\SPIROPA\SPIROPA_Sosik_sample_log.xlsx'); 
+
+spiropa_samplelog = spiropa_samplelog(:, [1 2 7 14]); 
+spiropa_samplelog.Properties.VariableNames{4} = 'FCMcol'; 
+
+samplelog = [samplelog; spiropa_samplelog]; 
+
 %%
 
 %make variable for whether FCM sample should exist
